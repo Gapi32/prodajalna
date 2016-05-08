@@ -47,7 +47,7 @@ function davcnaStopnja(izvajalec, zanr) {
 
 // Prikaz seznama pesmi na strani
 streznik.get('/', function(zahteva, odgovor) {
-  if(!zahteva.session.userLogedin){
+  if(!zahteva.session.stranka){
     odgovor.redirect('/prijava');
   } else{
   pb.all("SELECT Track.TrackId AS id, Track.Name AS pesem, \
@@ -170,16 +170,22 @@ streznik.post('/izpisiRacunBaza', function(zahteva, odgovor) {
   var form = new formidable.IncomingForm();
   
   form.parse(zahteva, function(napaka1, polja, datoteke){
-    strankaIzID(polja.seznamRacunov, function(pStranke){
-      if (!pStranke) {
-        odgovor.sendStatus(500);
-      } else {
-        odgovor.setHeader('content-type', 'text/xml');
-        odgovor.render('eslog', {
-          vizualiziraj: true,
-          stranka: pStranke
-        })  
-      }
+    strankaIzRacuna(polja.seznamRacunov, function(pStranke){
+      pesmiIzRacuna(polja.seznamRacunov, function(pesmi){
+          if (!pesmi || !pStranke) {
+            odgovor.sendStatus(500);
+          } else if (pesmi.length == 0) {
+            odgovor.send("<p>V košarici nimate nobene pesmi, \
+              zato računa ni mogoče pripraviti!</p>");
+          } else {
+            odgovor.setHeader('content-type', 'text/xml');
+            odgovor.render('eslog', {
+              vizualiziraj: true,
+              postavkeRacuna: pesmi,
+              stranka: pStranke[0]
+          })  
+        }
+      });
     });
   });
 })
@@ -193,12 +199,17 @@ streznik.get('/izpisiRacun/:oblika', function(zahteva, odgovor) {
       odgovor.send("<p>V košarici nimate nobene pesmi, \
         zato računa ni mogoče pripraviti!</p>");
     } else {
-      odgovor.setHeader('content-type', 'text/xml');
-      odgovor.render('eslog', {
-        vizualiziraj: zahteva.params.oblika == 'html' ? true : false,
-        postavkeRacuna: pesmi,
-        stranka:" "
-      })  
+      var form = new formidable.IncomingForm();
+      form.parse(zahteva, function(napaka1, polja, datoteke){
+        strankaIzID(zahteva.session.stranka, function(stranka){
+          odgovor.setHeader('content-type', 'text/xml');
+          odgovor.render('eslog', {
+            vizualiziraj: zahteva.params.oblika == 'html' ? true : false,
+            postavkeRacuna: pesmi,
+            stranka: stranka[0]
+          });
+        });
+      });  
     }
   })
 })
@@ -244,20 +255,18 @@ streznik.post('/prijava', function(zahteva, odgovor) {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
       //TODO: add fields and finalize
       stmt.run(polja.FirstName, polja.LastName, polja.Company, polja.Address, polja.City, polja.State, polja.Country, polja.PostalCode, polja.Phone, polja.Fax, polja.Email, 3); 
- +    stmt.finalize();
+      stmt.finalize();
     } catch (err) {
       napaka2 = true;
     }
-  
-    msg = "Stranka je bila uspešno registrirana."
-    if (napaka2) {
-      msg = "Prišlo je do napake pri registraciji nove stranke. Prosim preverite vnešene podatke in poskusite znova."
-    }
-    
-    vrniStranke(function(napaka1, stranke) {
-      vrniRacune(function(napaka2, racuni) {
-        odgovor.render('prijava', {sporocilo: msg, seznamStrank: stranke, seznamRacunov: racuni});
-      });
+    vrniStranke(function(error1, stranke) {
+      vrniRacune(function(error2, racuni) {
+        if(error1 || error2) {
+            odgovor.render('prijava', {sporocilo: "Prišlo je do napake pri registraciji nove stranke. Prosim preverite vnešene podatke in poskusite znova.", seznamStrank: stranke, seznamRacunov: racuni});  
+        } else {
+            odgovor.render('prijava', {sporocilo: "Stranka je bila uspešno registrirana.", seznamStrank: stranke, seznamRacunov: racuni});  
+        }
+      }) 
     });
   });
 });
@@ -276,14 +285,14 @@ streznik.post('/stranka', function(zahteva, odgovor) {
   var form = new formidable.IncomingForm();
   
   form.parse(zahteva, function (napaka1, polja, datoteke) {
-    zahteva.session.userLogedin = polja.seznamStrank;
+    zahteva.session.stranka = parseInt(polja.seznamStrank);
     odgovor.redirect('/')
   });
 })
 
 // Odjava stranke
 streznik.post('/odjava', function(zahteva, odgovor) {
-  zahteva.session.userLogedin = null;
+  zahteva.session.stranka = null;
   odgovor.redirect('/prijava'); 
 })
 
