@@ -47,7 +47,7 @@ function davcnaStopnja(izvajalec, zanr) {
 
 // Prikaz seznama pesmi na strani
 streznik.get('/', function(zahteva, odgovor) {
-  if(!zahteva.session.userId){
+  if(!zahteva.session.userLogedin){
     odgovor.redirect('/prijava');
   } else{
   pb.all("SELECT Track.TrackId AS id, Track.Name AS pesem, \
