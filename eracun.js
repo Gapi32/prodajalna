@@ -155,6 +155,8 @@ var strankaIzRacuna = function(racunId, callback) {
 
 // Izpis računa v HTML predstavitvi na podlagi podatkov iz baze
 streznik.post('/izpisiRacunBaza', function(zahteva, odgovor) {
+  var form = new formidable.IncomingForm();
+  
   form.parse(zahteva, function(napaka1, polja, datoteke){
     strankaIzRacuna(polja.seznamRacunov, function(pStranke){
       pesmiIzRacuna(polja.seznamRacunov, function(pesmi){
